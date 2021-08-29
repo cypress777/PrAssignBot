@@ -1,0 +1,45 @@
+openapi: 3.0.0
+
+info:
+  title: Teams Bot
+  description: Receiving info from teams
+  version: 1.0.0
+
+servers:
+- url: https://localhost:3978/test/v1/
+
+paths:
+  /echo:
+    post:
+      summary: Get message from teams channel and echo back
+      operationId: bot.echo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/echo_config'
+        required: true
+      responses:
+        200:
+          description: Echo back teams message
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/echo_config'
+        500:
+          description: Internal Server Error
+          content:
+            text/plain:
+              schema:
+                type: string
+                format: utf8
+
+components:
+  schemas:
+    echo_config:
+      type: object
+      properties:
+        pr_url:
+          type: string
+        pr_desc:
+          type: string
