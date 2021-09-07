@@ -42,16 +42,46 @@
             ],
             "commands": [
               {
-                "title": "MentionMe",
-                "description": "Sends message with @mention of the sender"
+                "title": "CreatePrForm",
+                "description": "PR submission form"
               },
               {
                 "title": "ShowTaskGroups",
                 "description": "Show all task groups"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "composeExtensions": [
+      {
+        "botId": "4baa95bd-5c4d-498b-98d1-d57c74211e7e",
+        "commands": [
+          {
+            "id": "submitPR",
+            "type": "action",
+            "context": [ "compose" ],
+            "description": "Submit PR task info for review",
+            "title": "Submit PR",
+            "parameters": [
+              {
+                "name": "WI",
+                "title": "Work Item Number",
+                "description": "Work Item Number",
+                "inputType": "text"
               },
               {
-                "title": "MessageAllMembers",
-                "description": "Send 1 to 1 message to all members of the current conversation"
+                "name": "PrLink",
+                "title": "PR Link",
+                "description": "Link of PR Repo",
+                "inputType": "text"
+              },
+              {
+                "name": "Description",
+                "title": "Description",
+                "description": "Shortly describe changes in this PR",
+                "inputType": "textarea"
               }
             ]
           }
