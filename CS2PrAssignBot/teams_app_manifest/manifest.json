@@ -1,0 +1,66 @@
+{
+    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.5/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.5",
+    "version": "1.0.0",
+    "id": "4baa95bd-5c4d-498b-98d1-d57c74211e7e",
+    "packageName": "com.funwork.prassign",
+    "developer": {
+      "name": "YPC",
+      "websiteUrl": "https://www.random.com",
+      "privacyUrl": "https://www.random.com/privacy",
+      "termsOfUseUrl": "https://www.random.com/termsofuser"
+    },
+    "icons": {
+      "outline": "icon-outline.png",
+      "color": "icon-color.png"
+    },
+    "name": {
+      "short": "PrAssignBot",
+      "full": "PrAssignBot"
+    },
+    "description": {
+      "short": "PrAssignBot",
+      "full": "PrAssignBot"
+    },
+    "accentColor": "#FFFFFF",
+    "bots": [
+      {
+        "botId": "4baa95bd-5c4d-498b-98d1-d57c74211e7e",
+        "scopes": [
+          "personal",
+          "groupchat",
+          "team"
+        ],
+        "supportsFiles": false,
+        "isNotificationOnly": false,
+        "commandLists": [
+          {
+            "scopes": [
+              "personal",
+              "groupchat",
+              "team"
+            ],
+            "commands": [
+              {
+                "title": "MentionMe",
+                "description": "Sends message with @mention of the sender"
+              },
+              {
+                "title": "ShowTaskGroups",
+                "description": "Show all task groups"
+              },
+              {
+                "title": "MessageAllMembers",
+                "description": "Send 1 to 1 message to all members of the current conversation"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "permissions": [
+      "identity",
+      "messageTeamMembers"
+    ],
+    "validDomains": []
+  }
