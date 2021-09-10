@@ -42,10 +42,6 @@
             ],
             "commands": [
               {
-                "title": "CreatePrForm",
-                "description": "PR submission form"
-              },
-              {
                 "title": "ShowTaskGroups",
                 "description": "Show all task groups"
               }

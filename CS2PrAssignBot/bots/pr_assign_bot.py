@@ -13,66 +13,10 @@ from botbuilder.schema.teams import (
 )
 from botbuilder.schema._connector_client_enums import ActionTypes
 
+import bots.utils as bot_utils
 
-CHANNEL_ID = "19:1a214a2780304f409bc7e200a70f1c86@thread.tacv2"
-def CONFIG_FORM_CARD(WI: str, pr_link: str, description: str, current_time: str, reviewee: ChannelAccount): 
-    return {
-                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                "type": "AdaptiveCard",
-                "version": "1.3",
-                "body": [
-                    {
-                        "type": "Container",
-                        "items": [
-                            {
-                                "type": "TextBlock",
-                                "size": "large",
-                                "weight": "bolder",
-                                "text": "WI: {}".format(WI)
-                            },
-                            {
-                                "type": "TextBlock",
-                                "size": "medium",
-                                "text": pr_link
-                            },
-                            {
-                                "type": "TextBlock",
-                                "size": "small",
-                                "text": description
-                            },
-                            {
-                                "type": "FactSet",
-                                "facts": [
-                                    {
-                                        "title": "Reviewee",
-                                        "value": "<at>{}</at>".format(reviewee.name)
-                                    },
-                                    {
-                                        "title": "Assigned to:",
-                                        "value": "Not Assigned"
-                                    },
-                                    {
-                                        "title": "Start date:",
-                                        "value": current_time
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ],
-                "msteams": {
-                    "entities": [
-                        {
-                            "type": "mention",
-                            "text": "<at>{}</at>".format(reviewee.name),
-                            "mentioned": {
-                                "id": reviewee.id,
-                                "name": reviewee.name
-                            }
-                        }
-                    ]
-                }
-            }
+
+PR_CHANNEL_ID = "19:1a214a2780304f409bc7e200a70f1c86@thread.tacv2"
 
 class PrAssignBot(TeamsActivityHandler):
     def __init__(self, app_id: str, app_password: str):
@@ -109,99 +53,55 @@ class PrAssignBot(TeamsActivityHandler):
 
         message = MessageFactory.attachment(
             attachment=CardFactory.adaptive_card(
-                CONFIG_FORM_CARD(action.data["WI"], action.data["PrLink"], action.data["Description"], current_time, reviewee)
+                bot_utils.construct_pr_submit_form(
+                    action.data["WI"],
+                    action.data["PrLink"],
+                    action.data["Description"],
+                    current_time,
+                    reviewee,
+                )
             )
         )
 
-        post_from_same_channel = True
+        post_from_same_channel = False
         try:
-            if teams_get_channel_id(turn_context) != CHANNEL_ID:
-                post_from_same_channel = False
+            if teams_get_channel_id(turn_context.activity) == PR_CHANNEL_ID:
+                post_from_same_channel = True
         except:
-            post_from_same_channel = False
+            pass
 
         if not post_from_same_channel:
             await turn_context.send_activity(MessageFactory.text("Pr review request has been updated to the channel"))
 
-        await self._create_new_thread_in_channel(turn_context, CHANNEL_ID, message=message)
+        await self._create_new_thread_in_channel(turn_context, PR_CHANNEL_ID, message=message)
 
         return MessagingExtensionActionResponse()
 
     async def on_message_activity(self, turn_context: TurnContext):
         TurnContext.remove_recipient_mention(turn_context.activity)
-        text = turn_context.activity.text.strip().lower()
-        if "create" in text:
-            teams_channel_id = teams_get_channel_id(turn_context.activity)
-            print(turn_context.activity)
-            print(teams_channel_id)
-            message = MessageFactory.text("This will be the start of a new thread")
-            await self._create_new_thread_in_channel(turn_context, teams_channel_id, message=message)
-            # await self._send_pr_form_card(turn_context)
-            return
+        if turn_context.activity.text:
+            text = turn_context.activity.text.strip().lower()
 
-        if "show" in text:
-            await self._send_task_group_card(turn_context, True)
-            return
+            if "show" in text:
+                await self._send_task_group_card(turn_context, True)
+                return
+
+        if turn_context.activity.value:
+            value = turn_context.activity.value
+            
+            if value["action"]:
+                if "deletethiscard" in value["action"].strip().lower():
+                    await self._delete_card_activity(turn_context)
+                    return
 
         await self._send_help_card(turn_context, False)
         return
 
     async def _send_help_card(self, turn_context: TurnContext, isUpdate):
-        buttons = [
-            CardAction(
-                type=ActionTypes.message_back,
-                title="Message all members",
-                text="messageallmembers",
-            ),
-            CardAction(type=ActionTypes.message_back, title="Who am I?", text="whoami"),
-            CardAction(
-                type=ActionTypes.message_back, title="Delete card", text="deletecard"
-            ),
-        ]
-        card = HeroCard(
-            title="Welcome Card", text="Click the buttons.", buttons=buttons
-        )
-        await turn_context.send_activity(
-            MessageFactory.attachment(CardFactory.hero_card(card))
-        )
+        await turn_context.send_activity(MessageFactory.text("No help info"))
 
     async def _send_task_group_card(self, turn_context: TurnContext, isUpdate):
-        buttons = [
-            CardAction(
-                type=ActionTypes.message_back,
-                title="Message all members",
-                text="messageallmembers",
-            ),
-            CardAction(type=ActionTypes.message_back, title="Who am I?", text="whoami"),
-            CardAction(
-                type=ActionTypes.message_back, title="Delete card", text="deletecard"
-            ),
-        ]
-        card = HeroCard(
-            title="Welcome Card", text="Click the buttons.", buttons=buttons
-        )
-        await turn_context.send_activity(
-            MessageFactory.attachment(CardFactory.hero_card(card))
-        )
-
-    async def _send_pr_form_card(self, turn_context: TurnContext, isUpdate):
-        buttons = [
-            CardAction(
-                type=ActionTypes.message_back,
-                title="Message all members",
-                text="messageallmembers",
-            ),
-            CardAction(type=ActionTypes.message_back, title="Who am I?", text="whoami"),
-            CardAction(
-                type=ActionTypes.message_back, title="Delete card", text="deletecard"
-            ),
-        ]
-        card = HeroCard(
-            title="Welcome Card", text="Click the buttons.", buttons=buttons
-        )
-        await turn_context.send_activity(
-            MessageFactory.attachment(CardFactory.hero_card(card))
-        )
+        await turn_context.send_activity(MessageFactory.text("No task group info"))
 
     async def _create_new_thread_in_channel(self, turn_context: TurnContext, teams_channel_id: str, message):
         params = ConversationParameters(
@@ -213,3 +113,6 @@ class PrAssignBot(TeamsActivityHandler):
         
         connector_client = await turn_context.adapter.create_connector_client(turn_context.activity.service_url)
         await connector_client.conversations.create_conversation(params)
+
+    async def _delete_card_activity(self, turn_context: TurnContext):
+        await turn_context.delete_activity(turn_context.activity.reply_to_id)
