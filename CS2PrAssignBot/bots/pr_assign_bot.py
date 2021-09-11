@@ -101,8 +101,6 @@ class PrAssignBot(TeamsActivityHandler):
         await turn_context.send_activity(MessageFactory.text("No help info"))
 
     async def _send_task_group_card(self, turn_context: TurnContext):
-        team_id = await TeamsInfo.get_team_id(turn_context)
-        print(team_id)
         await turn_context.send_activity(MessageFactory.text("No task group info"))
 
     async def _create_new_thread_in_channel(self, turn_context: TurnContext, teams_channel_id: str, message):
