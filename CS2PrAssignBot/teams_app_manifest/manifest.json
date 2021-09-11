@@ -3,12 +3,12 @@
     "manifestVersion": "1.5",
     "version": "1.0.0",
     "id": "4baa95bd-5c4d-498b-98d1-d57c74211e7e",
-    "packageName": "com.funwork.prassign",
+    "packageName": "com.funwork.prassignbot",
     "developer": {
       "name": "YPC",
-      "websiteUrl": "https://www.random.com",
-      "privacyUrl": "https://www.random.com/privacy",
-      "termsOfUseUrl": "https://www.random.com/termsofuser"
+      "websiteUrl": "https://www.microsoft.com",
+      "privacyUrl": "https://www.teams.com/privacy",
+      "termsOfUseUrl": "https://www.teams.com/termsofuser"
     },
     "icons": {
       "outline": "icon-outline.png",

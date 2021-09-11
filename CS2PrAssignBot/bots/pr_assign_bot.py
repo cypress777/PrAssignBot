@@ -13,7 +13,7 @@ from botbuilder.schema.teams import (
 )
 from botbuilder.schema._connector_client_enums import ActionTypes
 
-import bots.utils as bot_utils
+import bots.card_utils as bot_utils
 
 
 PR_CHANNEL_ID = "19:1a214a2780304f409bc7e200a70f1c86@thread.tacv2"
@@ -83,7 +83,7 @@ class PrAssignBot(TeamsActivityHandler):
             text = turn_context.activity.text.strip().lower()
 
             if "show" in text:
-                await self._send_task_group_card(turn_context, True)
+                await self._send_task_group_card(turn_context)
                 return
 
         if turn_context.activity.value:
@@ -94,13 +94,15 @@ class PrAssignBot(TeamsActivityHandler):
                     await self._delete_card_activity(turn_context)
                     return
 
-        await self._send_help_card(turn_context, False)
+        await self._send_help_card(turn_context)
         return
 
-    async def _send_help_card(self, turn_context: TurnContext, isUpdate):
+    async def _send_help_card(self, turn_context: TurnContext):
         await turn_context.send_activity(MessageFactory.text("No help info"))
 
-    async def _send_task_group_card(self, turn_context: TurnContext, isUpdate):
+    async def _send_task_group_card(self, turn_context: TurnContext):
+        team_id = await TeamsInfo.get_team_id(turn_context)
+        print(team_id)
         await turn_context.send_activity(MessageFactory.text("No task group info"))
 
     async def _create_new_thread_in_channel(self, turn_context: TurnContext, teams_channel_id: str, message):
