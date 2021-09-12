@@ -2,21 +2,19 @@ from datetime import date
 from typing import List
 from botbuilder.core import CardFactory, TurnContext, MessageFactory
 from botbuilder.core.teams import TeamsActivityHandler, TeamsInfo, teams_get_channel_id
-from botbuilder.schema import CardAction, HeroCard, Mention, ConversationParameters, ChannelAccount
+from botbuilder.schema import ConversationParameters, ChannelAccount
 from botbuilder.schema.teams import (
     TeamInfo,
     TeamsChannelAccount,
     MessagingExtensionActionResponse,
     MessagingExtensionAction,
-    MessagingExtensionAttachment,
-    MessagingExtensionResult,
 )
-from botbuilder.schema._connector_client_enums import ActionTypes
 
 import bots.card_utils as bot_utils
 
 
 PR_CHANNEL_ID = "19:1a214a2780304f409bc7e200a70f1c86@thread.tacv2"
+TEAM_ID = "19:6f50da8c44b34e9bb039b328cd8b5026@thread.tacv2"
 
 class PrAssignBot(TeamsActivityHandler):
     def __init__(self, app_id: str, app_password: str):
@@ -101,7 +99,18 @@ class PrAssignBot(TeamsActivityHandler):
         await turn_context.send_activity(MessageFactory.text("No help info"))
 
     async def _send_task_group_card(self, turn_context: TurnContext):
-        await turn_context.send_activity(MessageFactory.text("No task group info"))
+        team_info = await TeamsInfo.get_team_details(turn_context)
+        # team_id = TeamsInfo.get_team_id(turn_context)
+        # team_channels = await TeamsInfo.get_team_channels(turn_context)
+        team_members = await TeamsInfo.get_team_members(turn_context)
+
+        message = MessageFactory.attachment(
+            attachment=CardFactory.adaptive_card(
+                bot_utils.construct_group_info_card(team_info, team_members)
+            )
+        )
+
+        await turn_context.send_activity(message)
 
     async def _create_new_thread_in_channel(self, turn_context: TurnContext, teams_channel_id: str, message):
         params = ConversationParameters(
