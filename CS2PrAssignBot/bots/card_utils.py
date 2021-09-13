@@ -28,7 +28,7 @@ def construct_select_group_card(
                     {
                         "type": "TextBlock",
                         "size": "medium",
-                        "text": "[{}]({})".format(pr_link, pr_link)
+                        "text": "[click to review]({})".format(pr_link)
                     },
                     {
                         "type": "TextBlock",
@@ -108,7 +108,7 @@ def construct_pr_submit_form(
                     {
                         "type": "TextBlock",
                         "size": "medium",
-                        "text": "[{}]({})".format(pr_link, pr_link)
+                        "text": "[click to review]({})".format(pr_link)
                     },
                     {
                         "type": "TextBlock",
