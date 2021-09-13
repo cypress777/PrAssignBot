@@ -82,6 +82,12 @@
                 "title": "Description",
                 "description": "Shortly describe changes in this PR",
                 "inputType": "textarea"
+              },
+              {
+                "name": "TaskGroup",
+                "title": "Task Group [Optional]",
+                "description": "Task group for this WI, could be decided later",
+                "inputType": "text"
               }
             ]
           }
