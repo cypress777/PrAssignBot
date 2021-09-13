@@ -23,12 +23,12 @@ def construct_select_group_card(
                         "type": "TextBlock",
                         "size": "large",
                         "weight": "bolder",
-                        "text": "WI: {}".format(WI)
+                        "text": "{}".format(WI)
                     },
                     {
                         "type": "TextBlock",
                         "size": "medium",
-                        "text": "link: {}".format(pr_link)
+                        "text": "[{}]({})".format(pr_link, pr_link)
                     },
                     {
                         "type": "TextBlock",
@@ -103,12 +103,12 @@ def construct_pr_submit_form(
                         "type": "TextBlock",
                         "size": "large",
                         "weight": "bolder",
-                        "text": "WI: {}".format(WI)
+                        "text": "{}".format(WI)
                     },
                     {
                         "type": "TextBlock",
                         "size": "medium",
-                        "text": "link: {}".format(pr_link)
+                        "text": "[{}]({})".format(pr_link, pr_link)
                     },
                     {
                         "type": "TextBlock",
@@ -156,7 +156,7 @@ def construct_pr_submit_form(
     for reviewer in reviewers:
         if len(reviewer_string) > 0:
             reviewer_string += ","
-            
+
         added = False
         for added_member in added_members:
             if added_member.name == reviewer:

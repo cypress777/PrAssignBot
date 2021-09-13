@@ -1,4 +1,7 @@
 from typing import Any, List, Optional, Union, Dict
+import json
+import os
+import pathlib
 import random
 from botbuilder.core import CardFactory, TurnContext, MessageFactory
 from botbuilder.core.teams import TeamsActivityHandler, teams_get_channel_id
@@ -12,7 +15,6 @@ from botbuilder.schema.teams import (
 import copy
 
 import bots.card_utils as bot_utils
-from bots.team_config import TEAM_CONFIG
 
 
 PR_CHANNEL_ID = "19:1a214a2780304f409bc7e200a70f1c86@thread.tacv2"
@@ -212,4 +214,6 @@ class PrAssignBot(TeamsActivityHandler):
         await turn_context.delete_activity(turn_context.activity.reply_to_id)
 
     def _load_team_config(self) -> Dict:
-        return TEAM_CONFIG
+        file_path = os.path.join(os.path.dirname(__file__), "team_config.json")
+        with open(file_path, "r") as f_ptr:
+            return json.load(f_ptr)
