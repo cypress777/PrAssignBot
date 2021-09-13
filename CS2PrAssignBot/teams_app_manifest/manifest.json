@@ -44,6 +44,10 @@
               {
                 "title": "ShowTaskGroups",
                 "description": "Show all task groups"
+              },
+              {
+                "title": "AddMeToGroup",
+                "description": "Add current user to task groups"
               }
             ]
           }

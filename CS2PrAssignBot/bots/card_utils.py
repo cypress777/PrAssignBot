@@ -1,10 +1,10 @@
-from typing import List
+from typing import Dict, Union
 
 from botbuilder.schema import ChannelAccount
-from botbuilder.schema.teams import TeamDetails, TeamsChannelAccount
+from botbuilder.schema.teams import TeamsChannelAccount
 
 
-def construct_pr_submit_form(WI: str, pr_link: str, description: str, current_time: str, reviewee: ChannelAccount): 
+def construct_pr_submit_form(WI: str, pr_link: str, description: str, current_time: str, reviewee: Union[ChannelAccount, TeamsChannelAccount]): 
     return {
                 "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
                 "type": "AdaptiveCard",
@@ -33,16 +33,16 @@ def construct_pr_submit_form(WI: str, pr_link: str, description: str, current_ti
                                 "type": "FactSet",
                                 "facts": [
                                     {
+                                        "title": "Start date:",
+                                        "value": current_time
+                                    },
+                                    {
                                         "title": "Reviewee",
                                         "value": "<at>{}</at>".format(reviewee.name)
                                     },
                                     {
                                         "title": "Assigned to:",
                                         "value": "Not Assigned"
-                                    },
-                                    {
-                                        "title": "Start date:",
-                                        "value": current_time
                                     }
                                 ]
                             }
@@ -72,7 +72,7 @@ def construct_pr_submit_form(WI: str, pr_link: str, description: str, current_ti
                 }
             }
 
-def construct_group_info_card(team_info: TeamDetails, team_members: List[TeamsChannelAccount]):
+def construct_group_info_card(task_groups: Dict):
     group_info_card = {
         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
         "type": "AdaptiveCard",
@@ -82,29 +82,39 @@ def construct_group_info_card(team_info: TeamDetails, team_members: List[TeamsCh
                 "type": "TextBlock",
                 "size": "large",
                 "weight": "bolder",
-                "text": team_info.name,
-            },
-            {
-                "type": "Container",
-                "items": [
-                    {
-                        "type": "TextBlock",
-                        "size": "medium",
-                        "weight": "bolder",
-                        "text": "Group Members ({})".format(len(team_members))
-                    },
-                ]
+                "text": task_groups.get("team_name", ""),
             },
         ],
     }
 
-    for member in team_members:
-        group_info_card["body"][1]["items"].append(
-            {
-                "type": "TextBlock",
-                "text": member.name,
-                "spacing": "Small",        
-            }
-        )
+    for group_name, group_members in task_groups.get("groups", {}).items():
+        group_info = {
+            "type": "Container",
+            "items": [
+                {
+                    "type": "TextBlock",
+                    "size": "medium",
+                    "weight": "bolder",
+                    "text": "Task Group Name: {}".format(group_name)
+                },
+                {
+                    "type": "TextBlock",
+                    "size": "medium",
+                    "weight": "bolder",
+                    "text": "Task Group Members ({})".format(len(group_members))
+                },
+            ],
+        }
+
+        for member_name in group_members:
+            group_info["items"].append(
+                {
+                    "type": "TextBlock",
+                    "text": member_name,
+                    "spacing": "Small",        
+                }
+            )
+
+        group_info_card["body"].append(group_info)
 
     return group_info_card
