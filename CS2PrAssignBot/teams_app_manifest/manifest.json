@@ -3,7 +3,7 @@
     "manifestVersion": "1.5",
     "version": "1.0.0",
     "id": "4baa95bd-5c4d-498b-98d1-d57c74211e7e",
-    "packageName": "com.funwork.prassignbot",
+    "packageName": "com.funwork.smartbot",
     "developer": {
       "name": "YPC",
       "websiteUrl": "https://www.microsoft.com",
@@ -15,12 +15,12 @@
       "color": "icon-color.png"
     },
     "name": {
-      "short": "PrAssignBot",
-      "full": "PrAssignBot"
+      "short": "ReviewAssignBot",
+      "full": "ReviewAssignBot"
     },
     "description": {
-      "short": "PrAssignBot",
-      "full": "PrAssignBot"
+      "short": "Assign task to reviewers",
+      "full": "Assign task to reviewers"
     },
     "accentColor": "#FFFFFF",
     "bots": [
