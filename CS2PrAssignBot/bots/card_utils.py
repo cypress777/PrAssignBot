@@ -197,7 +197,7 @@ def construct_group_info_card(task_groups: Dict):
                 "type": "TextBlock",
                 "size": "large",
                 "weight": "bolder",
-                "text": task_groups.get("team_name", ""),
+                "text": "{} Task Groups".format(task_groups.get("team_name", "")),
             },
         ],
     }
@@ -210,14 +210,8 @@ def construct_group_info_card(task_groups: Dict):
                     "type": "TextBlock",
                     "size": "medium",
                     "weight": "bolder",
-                    "text": "Task Group Name: {}".format(group_name)
-                },
-                {
-                    "type": "TextBlock",
-                    "size": "medium",
-                    "weight": "bolder",
-                    "text": "Task Group Members ({})".format(len(group_members))
-                },
+                    "text": "{} ({})".format(group_name, len(group_members))
+                }
             ],
         }
 
@@ -225,7 +219,7 @@ def construct_group_info_card(task_groups: Dict):
             group_info["items"].append(
                 {
                     "type": "TextBlock",
-                    "text": member_name,
+                    "text": "" + member_name,
                     "spacing": "Small",        
                 }
             )
