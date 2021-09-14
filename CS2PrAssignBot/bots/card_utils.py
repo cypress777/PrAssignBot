@@ -93,13 +93,14 @@ def _construct_selected_card(select_group_card: Dict, task_groups) -> Dict:
         )
     return select_group_card
 
+#TODO: number of reviewers, specific reviewers with hint
 def construct_pr_submit_form(
     WI: str, 
     pr_link: str,
     description: str,
     reviewee: Union[ChannelAccount, TeamsChannelAccount],
     reviewers: List[str],
-    added_members: List[Union[ChannelAccount, TeamsChannelAccount]],
+    saved_members: List[Dict],
 ): 
     review_card = {
         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
@@ -120,7 +121,7 @@ def construct_pr_submit_form(
         ]
     }
 
-    _add_review_info(review_card, reviewee, reviewers, added_members)
+    _add_review_info(review_card, reviewee, reviewers, saved_members)
 
     review_card["body"].extend(
         [
@@ -136,7 +137,7 @@ def _add_review_info(
     review_card: Dict,
     reviewee: Union[ChannelAccount, TeamsChannelAccount],
     reviewers: List[str],
-    added_members: List[Union[ChannelAccount, TeamsChannelAccount]],
+    saved_members: List[Dict],
 ):
     review_info = {
         "type": "FactSet",
@@ -167,23 +168,23 @@ def _add_review_info(
         if len(reviewer_string) > 0:
             reviewer_string += ","
 
-        added = False
-        for added_member in added_members:
-            if added_member.name == reviewer:
+        saved = False
+        for saved_member in saved_members:
+            if saved_member["name"] == reviewer:
                 mentions["entities"].append(
                     {
                         "type": "mention",
                         "text": "<at>{}</at>".format(reviewer),
                         "mentioned": {
-                            "id": added_member.id,
+                            "id": saved_member["id"],
                             "name": reviewer
                         }
                     }
                 )
                 reviewer_string += " <at>{}</at>".format(reviewer)
-                added = True
+                saved = True
                 break
-        if not added:
+        if not saved:
             reviewer_string += " " + reviewer
 
     review_info["facts"].append(
@@ -197,7 +198,7 @@ def _add_review_info(
     review_card["msteams"] = mentions
         
 
-def construct_group_info_card(task_groups: Dict, added_members: List[Union[TeamsChannelAccount, ChannelAccount]]):
+def construct_group_info_card(task_groups: Dict, saved_members: List[Dict]):
     group_info_card = {
         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
         "type": "AdaptiveCard",
@@ -234,7 +235,7 @@ def construct_group_info_card(task_groups: Dict, added_members: List[Union[Teams
                 "spacing": "small",
                 "color": "accent",
             }
-            if _is_added_member(member_name, added_members):
+            if _is_saved_member(member_name, saved_members):
                 member["weight"] = "bolder"
 
             group_info["items"].append(member)
@@ -244,9 +245,9 @@ def construct_group_info_card(task_groups: Dict, added_members: List[Union[Teams
 
     return group_info_card
 
-def _is_added_member(member_name: str, added_members: List[Union[ChannelAccount, TeamsChannelAccount]]):
-    for added_member in added_members:
-        if added_member.name == member_name:
+def _is_saved_member(member_name: str, saved_members: List[Dict]):
+    for saved_member in saved_members:
+        if saved_member["name"] == member_name:
             return True
     return False
 

@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Union, Dict
+from typing import Any, List, Optional, Text, Union, Dict
 import json
 import os
 import pathlib
@@ -17,16 +17,20 @@ import copy
 import bots.card_utils as bot_utils
 
 
-PR_CHANNEL_ID = "19:1a214a2780304f409bc7e200a70f1c86@thread.tacv2"
-TEAM_ID = "19:6f50da8c44b34e9bb039b328cd8b5026@thread.tacv2"
+TEAM_MEMBERS_FILE_NAME = "team_members.json"
+TEAM_CONFIG_FILE_NAME = "team_config.json"
 
 class PrAssignBot(TeamsActivityHandler):
     def __init__(self, app_id: str, app_password: str):
+        self._team_config_file = os.path.join(os.path.dirname(__file__), TEAM_CONFIG_FILE_NAME)
+        self._team_member_file = os.path.join(os.path.dirname(__file__), TEAM_MEMBERS_FILE_NAME)
+
         self._app_id = app_id
         self._app_password = app_password
-        self._TEAM_CONFIG: Dict[str, Any] = self._load_team_config()
-        self._general_task_group: List[str] = self._get_general_task_group(self._TEAM_CONFIG["groups"])
-        self._added_team_members: List[ChannelAccount] = []
+
+        self._team_config: Dict[str, Any] = self._load_team_config()
+        self._general_task_group: List[str] = self._get_general_task_group(self._team_config["groups"])
+        self._saved_team_members: List[Dict] = self._load_saved_team_members()
 
     @staticmethod
     def _get_general_task_group(groups: Dict[str, List]) -> List[str]:
@@ -44,9 +48,7 @@ class PrAssignBot(TeamsActivityHandler):
     ):
         for member in teams_members_added:
             if member.id != turn_context.activity.recipient.id:
-                await turn_context.send_activity(
-                    f"Welcome to the team { member.given_name } { member.surname }. "
-                )
+                await self._send_help_card(turn_context, member)
 
     async def on_teams_messaging_extension_submit_action_dispatch(
         self, turn_context: TurnContext, action: MessagingExtensionAction
@@ -70,7 +72,7 @@ class PrAssignBot(TeamsActivityHandler):
                 data["WI"],
                 data["PrLink"],
                 data["Description"],
-                self._TEAM_CONFIG["groups"].keys(),
+                self._team_config["groups"].keys(),
                 selected=False,
             )
         )
@@ -97,7 +99,7 @@ class PrAssignBot(TeamsActivityHandler):
         await turn_context.update_activity(selected_group_message)
 
     def _get_valid_group_name(self, group_name: str) -> Optional[str]:
-        for name in self._TEAM_CONFIG["groups"]:
+        for name in self._team_config["groups"]:
             if name.lower() == group_name.strip().lower():
                 return name
         return None
@@ -106,10 +108,10 @@ class PrAssignBot(TeamsActivityHandler):
     def _assign_reviewers(self, reviewee: str, task_group_name: str, number_of_reviewers: int=-1):
         task_group_name = self._get_valid_group_name(task_group_name)
 
-        if not task_group_name or len(self._TEAM_CONFIG["groups"][task_group_name]) == 0:
+        if not task_group_name or len(self._team_config["groups"][task_group_name]) == 0:
             group = self._general_task_group
         else:
-            group = self._TEAM_CONFIG["groups"][task_group_name]
+            group = self._team_config["groups"][task_group_name]
 
         new_group_without_reviewee = copy.deepcopy(group)
         if reviewee in group:
@@ -144,14 +146,14 @@ class PrAssignBot(TeamsActivityHandler):
                 data["Description"],
                 reviewee,
                 reviewers,
-                self._added_team_members,
+                self._saved_team_members,
             )
         )
         submit_pr_message = MessageFactory.attachment(attachment=pr_card)
 
         post_from_same_channel = False
         try:
-            if teams_get_channel_id(turn_context.activity) == PR_CHANNEL_ID:
+            if teams_get_channel_id(turn_context.activity) == self._team_config["channel_id"]:
                 post_from_same_channel = True
         except:
             pass
@@ -159,7 +161,7 @@ class PrAssignBot(TeamsActivityHandler):
         if not post_from_same_channel:
             await turn_context.send_activity(MessageFactory.text("Pr review request has been updated to the channel"))
 
-        await self._create_new_thread_in_channel(turn_context, PR_CHANNEL_ID, message=submit_pr_message)
+        await self._create_new_thread_in_channel(turn_context, self._team_config["channel_id"], message=submit_pr_message)
 
     async def on_message_activity(self, turn_context: TurnContext):
         TurnContext.remove_recipient_mention(turn_context.activity)
@@ -188,11 +190,15 @@ class PrAssignBot(TeamsActivityHandler):
                     await self._submit_pr(turn_context, value)
                     return
 
+        # TODO: create help card
         await self._send_help_card(turn_context)
-        return
 
-    async def _send_help_card(self, turn_context: TurnContext):
-        await turn_context.send_activity(MessageFactory.text("No help info"))
+    async def _send_help_card(self, turn_context: TurnContext, member: Optional[Union[TeamsChannelAccount, ChannelAccount]]=None):
+        help_message = ""
+        if member:
+            help_message += "Don't panic, {} {}. ".format(member.given_name, member.surname)
+        help_message += "Help info will be provided in the future : )"
+        await turn_context.send_activity(MessageFactory.text(help_message))
 
     async def _send_task_group_card(self, turn_context: TurnContext):
         # DEBUG: remove later
@@ -208,7 +214,7 @@ class PrAssignBot(TeamsActivityHandler):
 
         message = MessageFactory.attachment(
             attachment=CardFactory.adaptive_card(
-                bot_utils.construct_group_info_card(self._TEAM_CONFIG, self._added_team_members)
+                bot_utils.construct_group_info_card(self._team_config, self._saved_team_members)
             )
         )
 
@@ -216,15 +222,25 @@ class PrAssignBot(TeamsActivityHandler):
 
     async def _send_add_user_card(self, turn_context: TurnContext):
         current_user: ChannelAccount = turn_context.activity.from_property
-        self._added_team_members.append(current_user)
+        self._update_saved_members(current_user.as_dict())
+        self._export_saved_team_members()
 
         greeting = "Hi, {}, you have been added to groups: General".format(current_user.name)
 
-        for group_name, members in self._TEAM_CONFIG.get("groups", {}).items():
+        for group_name, members in self._team_config.get("groups", {}).items():
             if current_user.name in members:
                 greeting += ", " + group_name
 
         await turn_context.send_activity(MessageFactory.text(greeting))
+
+    def _update_saved_members(self, new_member: Dict):
+        for member in self._saved_team_members:
+            if member["id"] == new_member["id"]:
+                self._saved_team_members.remove(member)
+                self._saved_team_members.append(new_member)
+                return
+        self._saved_team_members.append(new_member)
+        
 
     async def _create_new_thread_in_channel(self, turn_context: TurnContext, teams_channel_id: str, message):
         params = ConversationParameters(
@@ -241,6 +257,21 @@ class PrAssignBot(TeamsActivityHandler):
         await turn_context.delete_activity(turn_context.activity.reply_to_id)
 
     def _load_team_config(self) -> Dict:
-        file_path = os.path.join(os.path.dirname(__file__), "team_config.json")
-        with open(file_path, "r") as f_ptr:
-            return json.load(f_ptr)
+        try:
+            with open(self._team_config_file, "r") as f_ptr:
+                return json.load(f_ptr)
+        except IOError:
+            raise IOError("No team config file")
+
+    def _export_saved_team_members(self):
+        with open(self._team_member_file, "w+") as f_ptr:
+            json.dump(self._saved_team_members, f_ptr)
+
+    def _load_saved_team_members(self) -> List[Dict]:
+        if os.path.exists(self._team_member_file):
+            with open(self._team_member_file, "r") as f_ptr:
+                members = json.load(f_ptr)
+        if not members:
+            members = []
+
+        return members
