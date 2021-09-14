@@ -197,7 +197,7 @@ def _add_review_info(
     review_card["msteams"] = mentions
         
 
-def construct_group_info_card(task_groups: Dict):
+def construct_group_info_card(task_groups: Dict, added_members: List[Union[TeamsChannelAccount, ChannelAccount]]):
     group_info_card = {
         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
         "type": "AdaptiveCard",
@@ -209,6 +209,8 @@ def construct_group_info_card(task_groups: Dict):
                 "weight": "bolder",
                 "text": "{} Task Groups".format(task_groups.get("team_name", "")),
             },
+            _text_block_placeholder(),
+            _text_block_placeholder(),
         ],
     }
 
@@ -226,18 +228,27 @@ def construct_group_info_card(task_groups: Dict):
         }
 
         for member_name in group_members:
-            group_info["items"].append(
-                {
-                    "type": "TextBlock",
-                    "text": "" + member_name,
-                    "spacing": "Small",        
-                }
-            )
+            member = {
+                "type": "TextBlock",
+                "text": "" + member_name,
+                "spacing": "small",
+                "color": "accent",
+            }
+            if _is_added_member(member_name, added_members):
+                member["weight"] = "bolder"
+
+            group_info["items"].append(member)
 
         group_info_card["body"].append(group_info)
+        group_info_card["body"].append(_text_block_placeholder())
 
     return group_info_card
 
+def _is_added_member(member_name: str, added_members: List[Union[ChannelAccount, TeamsChannelAccount]]):
+    for added_member in added_members:
+        if added_member.name == member_name:
+            return True
+    return False
 
 def _pr_basic_info(WI: str, link: str, description: str) -> Dict:
     return {

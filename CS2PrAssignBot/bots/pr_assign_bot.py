@@ -196,16 +196,19 @@ class PrAssignBot(TeamsActivityHandler):
 
     async def _send_task_group_card(self, turn_context: TurnContext):
         # DEBUG: remove later
-        team_id = TeamsInfo.get_team_id(turn_context)
-        print("==== team id: ", team_id)
-        members: Union[ChannelAccount, TeamsChannelAccount] = await TeamsInfo.get_team_members(turn_context)
-        print("==== team member: ", len(members))
-        for member in members:
-            print("-- ", member.__dict__)
+        try:
+            team_id = TeamsInfo.get_team_id(turn_context)
+            print("==== team id: ", team_id)
+            members: Union[ChannelAccount, TeamsChannelAccount] = await TeamsInfo.get_team_members(turn_context)
+            print("==== team member: ", len(members))
+            for member in members:
+                print("-- ", member.__dict__)
+        except:
+            pass
 
         message = MessageFactory.attachment(
             attachment=CardFactory.adaptive_card(
-                bot_utils.construct_group_info_card(self._TEAM_CONFIG)
+                bot_utils.construct_group_info_card(self._TEAM_CONFIG, self._added_team_members)
             )
         )
 
