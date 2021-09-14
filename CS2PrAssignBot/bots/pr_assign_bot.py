@@ -4,7 +4,7 @@ import os
 import pathlib
 import random
 from botbuilder.core import CardFactory, TurnContext, MessageFactory
-from botbuilder.core.teams import TeamsActivityHandler, teams_get_channel_id
+from botbuilder.core.teams import TeamsActivityHandler, teams_get_channel_id, TeamsInfo
 from botbuilder.schema import ConversationParameters, ChannelAccount
 from botbuilder.schema.teams import (
     TeamInfo,
@@ -65,20 +65,36 @@ class PrAssignBot(TeamsActivityHandler):
         turn_context: TurnContext,  # pylint: disable=unused-argument
         data: Dict,
     ):
-        reviewee: Union[ChannelAccount, TeamsChannelAccount] = turn_context.activity.from_property
-
-        select_group_message = MessageFactory.attachment(
-            attachment=CardFactory.adaptive_card(
-                bot_utils.construct_select_group_card(
-                    data["WI"],
-                    data["PrLink"],
-                    data["Description"],
-                    reviewee,
-                    self._TEAM_CONFIG["groups"],
-                )
+        select_card = CardFactory.adaptive_card(
+            bot_utils.construct_select_group_card(
+                data["WI"],
+                data["PrLink"],
+                data["Description"],
+                self._TEAM_CONFIG["groups"].keys(),
+                selected=False,
             )
         )
+        select_group_message = MessageFactory.attachment(attachment=select_card)
         await turn_context.send_activity(select_group_message)
+
+    async def _update_select_group_card(
+        self,
+        turn_context: TurnContext,  # pylint: disable=unused-argument
+        data: Dict,
+    ):
+        selected_card = CardFactory.adaptive_card(
+            bot_utils.construct_select_group_card(
+                data["WI"],
+                data["PrLink"],
+                data["Description"],
+                [data.get("TaskGroup", "")],
+                selected=True,
+            )
+        )
+
+        selected_group_message = MessageFactory.attachment(attachment=selected_card)
+        selected_group_message.id = turn_context.activity.reply_to_id
+        await turn_context.update_activity(selected_group_message)
 
     def _get_valid_group_name(self, group_name: str) -> Optional[str]:
         for name in self._TEAM_CONFIG["groups"]:
@@ -121,18 +137,17 @@ class PrAssignBot(TeamsActivityHandler):
 
         reviewers = self._assign_reviewers(reviewee.name, data.get("TaskGroup", ""))
 
-        submit_pr_message = MessageFactory.attachment(
-            attachment=CardFactory.adaptive_card(
-                bot_utils.construct_pr_submit_form(
-                    data["WI"],
-                    data["PrLink"],
-                    data["Description"],
-                    reviewee,
-                    reviewers,
-                    self._added_team_members,
-                )
+        pr_card = CardFactory.adaptive_card(
+            bot_utils.construct_pr_submit_form(
+                data["WI"],
+                data["PrLink"],
+                data["Description"],
+                reviewee,
+                reviewers,
+                self._added_team_members,
             )
         )
+        submit_pr_message = MessageFactory.attachment(attachment=pr_card)
 
         post_from_same_channel = False
         try:
@@ -169,6 +184,7 @@ class PrAssignBot(TeamsActivityHandler):
                     return
 
                 if "submitpr" in value["action"].strip().lower():
+                    await self._update_select_group_card(turn_context, value)
                     await self._submit_pr(turn_context, value)
                     return
 
@@ -179,6 +195,14 @@ class PrAssignBot(TeamsActivityHandler):
         await turn_context.send_activity(MessageFactory.text("No help info"))
 
     async def _send_task_group_card(self, turn_context: TurnContext):
+        # DEBUG: remove later
+        team_id = TeamsInfo.get_team_id(turn_context)
+        print("==== team id: ", team_id)
+        members: Union[ChannelAccount, TeamsChannelAccount] = await TeamsInfo.get_team_members(turn_context)
+        print("==== team member: ", len(members))
+        for member in members:
+            print("-- ", member.__dict__)
+
         message = MessageFactory.attachment(
             attachment=CardFactory.adaptive_card(
                 bot_utils.construct_group_info_card(self._TEAM_CONFIG)
