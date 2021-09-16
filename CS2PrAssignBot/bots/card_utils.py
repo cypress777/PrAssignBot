@@ -52,7 +52,7 @@ def construct_select_group_card(
                     "placeholder": "Number of Reviewers",
                     "min": 1,
                     "max": 5,
-                    "value": 1,
+                    "errorMessage": "Number should be in [1, 5]"
                 }
             ]
         )
