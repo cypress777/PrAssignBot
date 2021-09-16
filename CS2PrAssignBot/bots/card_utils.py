@@ -77,7 +77,8 @@ def construct_select_group_card(
 
         if len(reviewers) > 0:
             _construct_selected_reviewers(select_group_card, reviewers)
-        else:
+        
+        if len(task_groups) > 0:
             _construct_selected_group(select_group_card, task_groups)
 
     return select_group_card
