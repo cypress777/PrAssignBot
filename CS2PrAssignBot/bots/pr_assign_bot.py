@@ -46,17 +46,19 @@ class PrAssignBot(TeamsActivityHandler):
         self, turn_context: TurnContext, action: MessagingExtensionAction
     ) -> MessagingExtensionActionResponse:
         if action.command_id == "submitPR":
-            specific_reviewers = action.data.get("Reviewers", "No reviewer specified")
-            invalid_reviewers = self._get_invalid_reviewers(specific_reviewers)
+            reviewers = action.data.get("Reviewers", "No reviewer specified")
+            assigned = len(reviewers.strip()) > 0
+            invalid_reviewers = self._get_invalid_reviewers(reviewers)
 
             if invalid_reviewers:
-                await turn_context.send_activity(MessageFactory.text(f"Invalid reviewers: {invalid_reviewers}"))
+                await turn_context.send_activity(MessageFactory.text("Invalid reviewers: {}".format(invalid_reviewers if assigned else "Not Assigned")))
                 await self._send_task_group_card(turn_context)
 
-            if invalid_reviewers or len(specific_reviewers) == 0:
+            if invalid_reviewers or len(reviewers) == 0:
                 await self._select_group_for_review(turn_context, action.data)
             else:
                 await self._submit_review(turn_context, action.data)
+
             return MessagingExtensionActionResponse()
 
         raise NotImplementedError(f"Unexpected action.command_id {action.command_id}.")
