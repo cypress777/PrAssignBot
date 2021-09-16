@@ -112,7 +112,7 @@ def _construct_selected_reviewers(select_group_card: Dict, reviewers):
     select_group_card["body"].append(
         {
             "type": "TextBlock",
-            "text": "Selected reviewers",
+            "text": "Specified reviewers",
             "weight": "bolder",
         }
     )
@@ -130,7 +130,7 @@ def _construct_selected_group(select_group_card: Dict, task_groups):
     select_group_card["body"].append(
         {
             "type": "TextBlock",
-            "text": "Selected task group for your review",
+            "text": "Selected task group",
             "weight": "bolder",
         }
     )
