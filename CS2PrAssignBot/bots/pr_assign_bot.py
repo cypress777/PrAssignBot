@@ -85,13 +85,16 @@ class PrAssignBot(TeamsActivityHandler):
 
                 if "submitpr" in value["action"].strip().lower():
                     reviewers = value.get("Reviewers", "")
-                    task_group = value.get("TaskGroup", "")
+                    assigned = len(reviewers.strip()) > 0
                     invalid_reviewers = self._get_invalid_reviewers(reviewers)
 
-                    if len(reviewers) == 0 and len(task_group) == 0:
+                    task_group = value.get("TaskGroup", "")
+
+                    if not assigned and len(task_group) == 0:
                         await turn_context.send_activity(MessageFactory.text("Please specify Reiviewers Or TaskGroup"))
-                    elif len(reviewers) > 0 and invalid_reviewers:
-                        await turn_context.send_activity(MessageFactory.text(f"Invalid reviewers: {invalid_reviewers}"))
+                    elif assigned and invalid_reviewers:
+                        error_message = "Invalid reviewers: {}".format(invalid_reviewers)
+                        await turn_context.send_activity(MessageFactory.text(error_message))
                     else:
                         await self._update_select_group_card(turn_context, value)
                         await self._submit_review(turn_context, value)
