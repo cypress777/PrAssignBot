@@ -49,10 +49,10 @@ def construct_select_group_card(
                     "type": "Input.Number",
                     "label": "Number of Reviewers",
                     "id": "NumberOfReviewers",
-                    "placeholder": "Number of Reviewers",
-                    "min": 1,
+                    "placeholder": "0 - Default Number of Reviewers",
+                    "min": 0,
                     "max": 100,
-                    "value": 1,
+                    "value": 0,
                     "errorMessage": "Wrong",
                 }
             ]
@@ -89,7 +89,6 @@ def _construct_unselect_group_choice_set(select_group_card: Dict, task_groups):
         "id": "TaskGroup",
         "style": "expanded",
         "isMultiSelect": False,
-        "value": "General",
         "choices": [
             {
                 "title": "General",

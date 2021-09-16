@@ -46,7 +46,7 @@ class PrAssignBot(TeamsActivityHandler):
         self, turn_context: TurnContext, action: MessagingExtensionAction
     ) -> MessagingExtensionActionResponse:
         if "submitpr" in action.command_id.strip().lower():
-            error_message = self._check_review_submission(turn_context.activity.from_property.name, action.data)
+            error_message = self.check_review_submission(turn_context.activity.from_property.name, action.data)
 
             if error_message:
                 await turn_context.send_activity(MessageFactory.text(error_message))
@@ -81,7 +81,7 @@ class PrAssignBot(TeamsActivityHandler):
                     return
 
                 if "submitpr" in value["action"].strip().lower():
-                    error_message = self._check_review_submission(turn_context.activity.from_property.name, value)
+                    error_message = self.check_review_submission(turn_context.activity.from_property.name, value)
                     if error_message:
                         await turn_context.send_activity(MessageFactory.text(error_message))
                     else:
@@ -93,18 +93,18 @@ class PrAssignBot(TeamsActivityHandler):
         await self._send_help_card(turn_context)
 
     def check_reviewer_numbers(self, reviewers_number: int) -> bool:
-        return 1 <= reviewers_number < len(self._general_task_group)
+        return 0 <= reviewers_number < len(self._general_task_group)
 
     def check_name_match_unique_member(self, name: str, group: List[str]) -> bool:
         count = 0
         for member in group:
-            if self._name_match(member, name):
+            if self.check_name_match(member, name):
                 count += 1
 
         return count == 1
 
     @staticmethod
-    def _name_match(actual: str, name: str) -> bool:
+    def check_name_match(actual: str, name: str) -> bool:
         if actual.strip().lower() == name.strip().lower():
             return True
 
@@ -117,19 +117,18 @@ class PrAssignBot(TeamsActivityHandler):
 
         return False
 
-    def _check_review_submission(self, reviewee: str, data: Dict) -> Optional[str]:
-        reviewers = data.get("Reviewers", "")
-        assigned = len(reviewers.replace(" ", "").replace(",", "")) > 0
-        invalid_reviewers = self._get_invalid_reviewers(reviewee, reviewers.split(","))
-
+    def check_review_submission(self, reviewee: str, data: Dict) -> Optional[str]:
+        reviewers_string = data.get("Reviewers", "")
         task_group = data.get("TaskGroup", "")
-        reviewer_number = int(data.get("NumberOfReviewers", "-1"))
+        reviewer_number = int(data.get("NumberOfReviewers", "0"))
 
+        assigned = len(reviewers_string.replace(" ", "").replace(",", "")) > 0
         if not assigned and len(task_group) == 0:
             return "*Please specify Reiviewers Or TaskGroup*"
 
-        if assigned and invalid_reviewers:
-            return "*Invalid reviewers: {}*".format(invalid_reviewers)
+        invalid_reviewers_error_message = self._get_invalid_reviewers_error_message(reviewee, reviewers_string.split(","))
+        if assigned and invalid_reviewers_error_message:
+            return "*Invalid reviewers: {}*".format(invalid_reviewers_error_message)
 
         if not self.check_reviewer_numbers(reviewer_number):
             return "*Incorrect reviewer number: {}, total team members: {}*".format(
@@ -137,6 +136,12 @@ class PrAssignBot(TeamsActivityHandler):
                 len(self._general_task_group),
             )
 
+        specified_reviewers = self._get_reviewer_list_from_string(reviewers_string)
+        if not self.check_reviewer_numbers(reviewer_number + len(specified_reviewers)):
+            return "*Too many reviewers: {}, total team members: {}*".format(
+                reviewer_number + len(specified_reviewers),
+                len(self._general_task_group),
+            )
 
     @staticmethod
     def _init_general_task_group(groups: Dict[str, List]) -> List[str]:
@@ -146,19 +151,18 @@ class PrAssignBot(TeamsActivityHandler):
 
         return list(set(members))
 
-    def _get_invalid_reviewers(self, reviewee: str, reviewers: List[str]) -> Optional[str]:
+    def _get_invalid_reviewers_error_message(self, reviewee: str, reviewers: List[str]) -> Optional[str]:
         invalid_string = None
         for reviewer in reviewers:
-            if not self.check_name_match_unique_member(reviewer, self._general_task_group) or self._name_match(reviewee, reviewer):
+            if not self.check_name_match_unique_member(reviewer, self._general_task_group) or self.check_name_match(reviewee, reviewer):
                 if invalid_string:
                     invalid_string += f", {reviewer}"
                 else:
                     invalid_string = reviewer
 
-                if self._name_match(reviewee, reviewer):
+                if self.check_name_match(reviewee, reviewer):
                     invalid_string += "[reviewee]"
             
-
         return invalid_string
 
     async def _select_group_for_review(
@@ -206,30 +210,43 @@ class PrAssignBot(TeamsActivityHandler):
         return None
 
     # TODO: count task assigned to each reviewers, add weight to them
-    def _assign_reviewers(self, reviewee: str, task_group_name: str, number_of_reviewers: int=-1) -> List[str]:
+    def _assign_reviewers(self, reviewee: str, task_group_name: str, number_of_reviewers, excluded_members: List[str]) -> List[str]:
         task_group_name = self._get_valid_group_name(task_group_name)
-
         if not task_group_name or len(self._team_config["groups"][task_group_name]) == 0:
             group = self._general_task_group
         else:
             group = self._team_config["groups"][task_group_name]
 
-        new_group_without_reviewee = copy.deepcopy(group)
-        if reviewee in group:
-            new_group_without_reviewee.remove(reviewee)
+        excluded_members.append(reviewee)
 
-        if number_of_reviewers == -1:
-            number_of_reviewers = max(1, len(new_group_without_reviewee) / 3)
+        assign_from_group = [member for member in group if member not in excluded_members]
 
         reviewers = []
-        while number_of_reviewers > 0 and len(new_group_without_reviewee) > 0:
-            reviewer = random.choice(new_group_without_reviewee)
-            reviewers.append(reviewer)
+        if number_of_reviewers >= len(assign_from_group):
+            reviewers.extend(assign_from_group)
+            excluded_members.extend(reviewers)
 
-            new_group_without_reviewee.remove(reviewer)
-            number_of_reviewers -= 1
+            assign_from_general_group = [member for member in self._general_task_group if member not in excluded_members]
+            reviewers.extend(
+                self._extract_members(
+                    number_of_reviewers - len(assign_from_group),
+                    assign_from_general_group
+                )
+            )
+        else:
+            reviewers = self._extract_members(assign_from_group)
 
         return reviewers
+
+    @staticmethod
+    def _extract_members(number: int, group: List[str]) -> List[str]:
+        members = []
+        while number > 0 and len(group) > 0:
+            member = random.choice(group)
+            members.append(member)
+            group.remove(member)
+            number -= 1
+        return members
 
     def _get_reviewer_list_from_string(self, reviewers_string: str) -> List[str]:
         reviewers = reviewers_string.split(",")
@@ -240,7 +257,7 @@ class PrAssignBot(TeamsActivityHandler):
                 continue
 
             for actual_reviewer in self._general_task_group:
-                if self._name_match(actual_reviewer, reviewer):
+                if self.check_name_match(actual_reviewer, reviewer):
                     formated_reviewers.append(actual_reviewer)
                     break
         
@@ -253,10 +270,15 @@ class PrAssignBot(TeamsActivityHandler):
     ):
         reviewee: Union[ChannelAccount, TeamsChannelAccount] = turn_context.activity.from_property
 
+        reviewers = []
         if data.get("Reviewers", None):
             reviewers = self._get_reviewer_list_from_string(data.get("Reviewers"))
-        else:
-            reviewers = self._assign_reviewers(reviewee.name, data.get("TaskGroup", ""), int(data.get("NumberOfReviewers", -1)))
+
+        number_of_reviewers = int(data.get("NumberOfReviewers", "0"))
+        if number_of_reviewers > 0:
+            excluded_members = copy.deepcopy(reviewers)
+            excluded_members.append(reviewee.name)
+            reviewers.extend(self._assign_reviewers(reviewee.name, data.get("TaskGroup", ""), number_of_reviewers, excluded_members))
 
         review_card = CardFactory.adaptive_card(
             bot_utils.construct_review_submit_form(
@@ -290,17 +312,6 @@ class PrAssignBot(TeamsActivityHandler):
         await turn_context.send_activity(MessageFactory.text(help_message))
 
     async def _send_task_group_card(self, turn_context: TurnContext):
-        # DEBUG: remove later
-        try:
-            team_id = TeamsInfo.get_team_id(turn_context)
-            print("==== team id: ", team_id)
-            members: Union[ChannelAccount, TeamsChannelAccount] = await TeamsInfo.get_team_members(turn_context)
-            print("==== team member: ", len(members))
-            for member in members:
-                print("-- ", member.__dict__)
-        except:
-            pass
-
         message = MessageFactory.attachment(
             attachment=CardFactory.adaptive_card(
                 bot_utils.construct_group_info_card(self._team_config, self._saved_team_members)
