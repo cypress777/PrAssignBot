@@ -1,7 +1,7 @@
 {
     "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.5/MicrosoftTeams.schema.json",
     "manifestVersion": "1.5",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "id": "4baa95bd-5c4d-498b-98d1-d57c74211e7e",
     "packageName": "com.funwork.smartbot",
     "developer": {
@@ -19,8 +19,8 @@
       "full": "ReviewAssignBot"
     },
     "description": {
-      "short": "Assign task to reviewers",
-      "full": "Assign task to reviewers"
+      "short": "Assign task to reviewers and notify them",
+      "full": "Assign task to reviewers and notify them"
     },
     "accentColor": "#FFFFFF",
     "bots": [

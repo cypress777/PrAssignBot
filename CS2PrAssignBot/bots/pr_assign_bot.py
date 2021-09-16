@@ -29,7 +29,7 @@ class PrAssignBot(TeamsActivityHandler):
         self._app_password = app_password
 
         self._team_config: Dict[str, Any] = self._load_team_config()
-        self._general_task_group: List[str] = self._get_general_task_group(self._team_config["groups"])
+        self._general_task_group: List[str] = self._init_general_task_group(self._team_config["groups"])
         self._saved_team_members: List[Dict] = self._load_saved_team_members()
 
     async def on_teams_members_added(  # pylint: disable=unused-argument
@@ -45,15 +45,11 @@ class PrAssignBot(TeamsActivityHandler):
     async def on_teams_messaging_extension_submit_action_dispatch(
         self, turn_context: TurnContext, action: MessagingExtensionAction
     ) -> MessagingExtensionActionResponse:
-        if action.command_id == "submitPR":
-            reviewers = action.data.get("Reviewers", "")
-            assigned = len(reviewers.strip()) > 0
-            invalid_reviewers = self._get_invalid_reviewers(reviewers)
+        if "submitpr" in action.command_id.strip().lower():
+            error_message = self._check_review_submission(turn_context.activity.from_property.name, action.data)
 
-            if invalid_reviewers:
-                await turn_context.send_activity(MessageFactory.text("*Invalid reviewers: {}*".format(invalid_reviewers if assigned else "Not Assigned")))
-
-            if invalid_reviewers or len(reviewers) == 0:
+            if error_message:
+                await turn_context.send_activity(MessageFactory.text(error_message))
                 await self._select_group_for_review(turn_context, action.data)
             else:
                 await self._submit_review(turn_context, action.data)
@@ -85,16 +81,8 @@ class PrAssignBot(TeamsActivityHandler):
                     return
 
                 if "submitpr" in value["action"].strip().lower():
-                    reviewers = value.get("Reviewers", "")
-                    assigned = len(reviewers.strip()) > 0
-                    invalid_reviewers = self._get_invalid_reviewers(reviewers)
-
-                    task_group = value.get("TaskGroup", "")
-
-                    if not assigned and len(task_group) == 0:
-                        await turn_context.send_activity(MessageFactory.text("*Please specify Reiviewers Or TaskGroup*"))
-                    elif assigned and invalid_reviewers:
-                        error_message = "*Invalid reviewers: {}*".format(invalid_reviewers)
+                    error_message = self._check_review_submission(turn_context.activity.from_property.name, value)
+                    if error_message:
                         await turn_context.send_activity(MessageFactory.text(error_message))
                     else:
                         await self._update_select_group_card(turn_context, value)
@@ -104,29 +92,72 @@ class PrAssignBot(TeamsActivityHandler):
         # TODO: create help card
         await self._send_help_card(turn_context)
 
+    def check_reviewer_numbers(self, reviewers_number: int) -> bool:
+        return 1 <= reviewers_number < len(self._general_task_group)
+
+    def check_name_match_unique_member(self, name: str, group: List[str]) -> bool:
+        count = 0
+        for member in group:
+            if self._name_match(member, name):
+                count += 1
+
+        return count == 1
+
     @staticmethod
-    def _get_general_task_group(groups: Dict[str, List]) -> List[str]:
+    def _name_match(actual: str, name: str) -> bool:
+        if actual.strip().lower() == name.strip().lower():
+            return True
+
+        if actual.strip().lower().replace(" ", "") == name.strip().lower():
+            return True
+
+        for part in actual.split(" "):
+            if part.strip().lower() == name.strip().lower():
+                return True
+
+        return False
+
+    def _check_review_submission(self, reviewee: str, data: Dict) -> Optional[str]:
+        reviewers = data.get("Reviewers", "")
+        assigned = len(reviewers.replace(" ", "").replace(",", "")) > 0
+        invalid_reviewers = self._get_invalid_reviewers(reviewee, reviewers.split(","))
+
+        task_group = data.get("TaskGroup", "")
+        reviewer_number = int(data.get("NumberOfReviewers", "-1"))
+
+        if not assigned and len(task_group) == 0:
+            return "*Please specify Reiviewers Or TaskGroup*"
+
+        if assigned and invalid_reviewers:
+            return "*Invalid reviewers: {}*".format(invalid_reviewers)
+
+        if not self.check_reviewer_numbers(reviewer_number):
+            return "*Incorrect reviewer number: {}, total team members: {}*".format(
+                reviewer_number,
+                len(self._general_task_group),
+            )
+
+
+    @staticmethod
+    def _init_general_task_group(groups: Dict[str, List]) -> List[str]:
         members = []
         for group in groups.values():
             members.extend(group)
 
         return list(set(members))
 
-    def _get_invalid_reviewers(self, reviewers_string: str) -> Optional[str]:
-        reviewers = reviewers_string.split(",")
-        
+    def _get_invalid_reviewers(self, reviewee: str, reviewers: List[str]) -> Optional[str]:
         invalid_string = None
         for reviewer in reviewers:
-            cnt = 0
-            for actual_member in self._general_task_group:
-                if actual_member.strip().lower() == reviewer.strip().lower():
-                    cnt += 1
-
-            if cnt != 1:
+            if not self.check_name_match_unique_member(reviewer, self._general_task_group) or self._name_match(reviewee, reviewer):
                 if invalid_string:
-                    invalid_string += f" {reviewer}"
+                    invalid_string += f", {reviewer}"
                 else:
                     invalid_string = reviewer
+
+                if self._name_match(reviewee, reviewer):
+                    invalid_string += "[reviewee]"
+            
 
         return invalid_string
 
@@ -170,7 +201,7 @@ class PrAssignBot(TeamsActivityHandler):
 
     def _get_valid_group_name(self, group_name: str) -> Optional[str]:
         for name in self._team_config["groups"]:
-            if name.lower() == group_name.strip().lower():
+            if group_name.strip().lower() == name.lower():
                 return name
         return None
 
@@ -205,8 +236,11 @@ class PrAssignBot(TeamsActivityHandler):
         formated_reviewers = []
 
         for reviewer in reviewers:
+            if not self.check_name_match_unique_member(reviewer, self._general_task_group):
+                continue
+
             for actual_reviewer in self._general_task_group:
-                if actual_reviewer.strip().lower() == reviewer.strip().lower():
+                if self._name_match(actual_reviewer, reviewer):
                     formated_reviewers.append(actual_reviewer)
                     break
         
