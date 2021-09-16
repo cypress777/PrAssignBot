@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Text, Union, Dict
+from typing import Any, List, Optional, Union, Dict
 import json
 import os
 import pathlib
@@ -32,14 +32,6 @@ class PrAssignBot(TeamsActivityHandler):
         self._general_task_group: List[str] = self._get_general_task_group(self._team_config["groups"])
         self._saved_team_members: List[Dict] = self._load_saved_team_members()
 
-    @staticmethod
-    def _get_general_task_group(groups: Dict[str, List]) -> List[str]:
-        members = []
-        for group in groups.values():
-            members.extend(group)
-
-        return list(set(members))
-
     async def on_teams_members_added(  # pylint: disable=unused-argument
         self,
         teams_members_added: List[TeamsChannelAccount],
@@ -54,15 +46,87 @@ class PrAssignBot(TeamsActivityHandler):
         self, turn_context: TurnContext, action: MessagingExtensionAction
     ) -> MessagingExtensionActionResponse:
         if action.command_id == "submitPR":
-            group_name = self._get_valid_group_name(action.data.get("TaskGroup", ""))
-            if group_name:
-                await self._submit_pr(turn_context, action.data)
+            specific_reviewers = action.data.get("Reviewers", "No reviewer specified")
+            invalid_reviewers = self._get_invalid_reviewers(specific_reviewers)
+
+            if invalid_reviewers:
+                await turn_context.send_activity(MessageFactory.text(f"Invalid reviewers: {invalid_reviewers}"))
+                await self._send_task_group_card(turn_context)
+
+            if invalid_reviewers or len(specific_reviewers) == 0:
+                await self._select_group_for_review(turn_context, action.data)
             else:
-                await self._select_group_for_pr(turn_context, action.data)
+                await self._submit_review(turn_context, action.data)
             return MessagingExtensionActionResponse()
+
         raise NotImplementedError(f"Unexpected action.command_id {action.command_id}.")
 
-    async def _select_group_for_pr(
+    async def on_message_activity(self, turn_context: TurnContext):
+        TurnContext.remove_recipient_mention(turn_context.activity)
+
+        if turn_context.activity.text:
+            text = turn_context.activity.text.strip().lower()
+
+            if "show" in text:
+                await self._send_task_group_card(turn_context)
+                return
+
+            if "addme" in text:
+                await self._send_add_user_card(turn_context)
+                return
+
+        if turn_context.activity.value:
+            value: Dict = turn_context.activity.value
+
+            if value.get("action", None):
+                if "deletethiscard" in value["action"].strip().lower():
+                    await self._delete_card_activity(turn_context)
+                    return
+
+                if "submitpr" in value["action"].strip().lower():
+                    reviewers = value.get("Reviewers", "")
+                    task_group = value.get("TaskGroup", "")
+                    invalid_reviewers = self._get_invalid_reviewers(reviewers)
+
+                    if len(reviewers) == 0 and len(task_group) == 0:
+                        await turn_context.send_activity(MessageFactory.text("Please specify Reiviewers Or TaskGroup"))
+                    elif len(reviewers) > 0 and invalid_reviewers:
+                        await turn_context.send_activity(MessageFactory.text(f"Invalid reviewers: {invalid_reviewers}"))
+                    else:
+                        await self._update_select_group_card(turn_context, value)
+                        await self._submit_review(turn_context, value)
+                    return
+
+        # TODO: create help card
+        await self._send_help_card(turn_context)
+
+    @staticmethod
+    def _get_general_task_group(groups: Dict[str, List]) -> List[str]:
+        members = []
+        for group in groups.values():
+            members.extend(group)
+
+        return list(set(members))
+
+    def _get_invalid_reviewers(self, reviewers_string: str) -> Optional[str]:
+        reviewers = reviewers_string.split(",")
+        
+        invalid_string = None
+        for reviewer in reviewers:
+            cnt = 0
+            for actual_member in self._general_task_group:
+                if actual_member.strip().lower() == reviewer.strip().lower():
+                    cnt += 1
+
+            if cnt != 1:
+                if invalid_string:
+                    invalid_string += f" {reviewer}"
+                else:
+                    invalid_string = reviewer
+
+        return invalid_string
+
+    async def _select_group_for_review(
         self,
         turn_context: TurnContext,  # pylint: disable=unused-argument
         data: Dict,
@@ -70,26 +134,28 @@ class PrAssignBot(TeamsActivityHandler):
         select_card = CardFactory.adaptive_card(
             bot_utils.construct_select_group_card(
                 data["WI"],
-                data["PrLink"],
+                data["ReiviewLink"],
                 data["Description"],
+                data.get("Reviewers", ""),
                 self._team_config["groups"].keys(),
                 selected=False,
             )
         )
-        select_group_message = MessageFactory.attachment(attachment=select_card)
-        await turn_context.send_activity(select_group_message)
+
+        await turn_context.send_activity(MessageFactory.attachment(attachment=select_card))
 
     async def _update_select_group_card(
         self,
-        turn_context: TurnContext,  # pylint: disable=unused-argument
+        turn_context: TurnContext,
         data: Dict,
     ):
         selected_card = CardFactory.adaptive_card(
             bot_utils.construct_select_group_card(
                 data["WI"],
-                data["PrLink"],
+                data["ReiviewLink"],
                 data["Description"],
-                [data.get("TaskGroup", "")],
+                data.get("Reviewers", ""),
+                [data.get("TaskGroup")] if data.get("TaskGroup") else [],
                 selected=True,
             )
         )
@@ -105,7 +171,7 @@ class PrAssignBot(TeamsActivityHandler):
         return None
 
     # TODO: count task assigned to each reviewers, add weight to them
-    def _assign_reviewers(self, reviewee: str, task_group_name: str, number_of_reviewers: int=-1):
+    def _assign_reviewers(self, reviewee: str, task_group_name: str, number_of_reviewers: int=-1) -> List[str]:
         task_group_name = self._get_valid_group_name(task_group_name)
 
         if not task_group_name or len(self._team_config["groups"][task_group_name]) == 0:
@@ -130,26 +196,41 @@ class PrAssignBot(TeamsActivityHandler):
 
         return reviewers
 
-    async def _submit_pr(
+    def _get_reviewer_list_from_string(self, reviewers_string: str) -> List[str]:
+        reviewers = reviewers_string.split(",")
+        formated_reviewers = []
+
+        for reviewer in reviewers:
+            for actual_reviewer in self._general_task_group:
+                if actual_reviewer.strip().lower() == reviewer.strip().lower():
+                    formated_reviewers.append(actual_reviewer)
+                    break
+        
+        return formated_reviewers
+
+    async def _submit_review(
         self,
         turn_context: TurnContext,  # pylint: disable=unused-argument
         data: Dict,
     ):
         reviewee: Union[ChannelAccount, TeamsChannelAccount] = turn_context.activity.from_property
 
-        reviewers = self._assign_reviewers(reviewee.name, data.get("TaskGroup", ""))
+        if data.get("Reviewers", None):
+            reviewers = self._get_reviewer_list_from_string(data.get("Reviewers"))
+        else:
+            reviewers = self._assign_reviewers(reviewee.name, data.get("TaskGroup", ""), int(data.get("NumberOfReviewers", -1)))
 
-        pr_card = CardFactory.adaptive_card(
-            bot_utils.construct_pr_submit_form(
+        review_card = CardFactory.adaptive_card(
+            bot_utils.construct_review_submit_form(
                 data["WI"],
-                data["PrLink"],
+                data["ReiviewLink"],
                 data["Description"],
                 reviewee,
                 reviewers,
                 self._saved_team_members,
             )
         )
-        submit_pr_message = MessageFactory.attachment(attachment=pr_card)
+        submit_review_message = MessageFactory.attachment(attachment=review_card)
 
         post_from_same_channel = False
         try:
@@ -161,37 +242,7 @@ class PrAssignBot(TeamsActivityHandler):
         if not post_from_same_channel:
             await turn_context.send_activity(MessageFactory.text("Pr review request has been updated to the channel"))
 
-        await self._create_new_thread_in_channel(turn_context, self._team_config["channel_id"], message=submit_pr_message)
-
-    async def on_message_activity(self, turn_context: TurnContext):
-        TurnContext.remove_recipient_mention(turn_context.activity)
-
-        if turn_context.activity.text:
-            text = turn_context.activity.text.strip().lower()
-
-            if "show" in text:
-                await self._send_task_group_card(turn_context)
-                return
-
-            if "addme" in text:
-                await self._send_add_user_card(turn_context)
-                return
-
-        if turn_context.activity.value:
-            value = turn_context.activity.value
-
-            if value.get("action", None):
-                if "deletethiscard" in value["action"].strip().lower():
-                    await self._delete_card_activity(turn_context)
-                    return
-
-                if "submitpr" in value["action"].strip().lower():
-                    await self._update_select_group_card(turn_context, value)
-                    await self._submit_pr(turn_context, value)
-                    return
-
-        # TODO: create help card
-        await self._send_help_card(turn_context)
+        await self._create_new_thread_in_channel(turn_context, self._team_config["channel_id"], message=submit_review_message)
 
     async def _send_help_card(self, turn_context: TurnContext, member: Optional[Union[TeamsChannelAccount, ChannelAccount]]=None):
         help_message = ""

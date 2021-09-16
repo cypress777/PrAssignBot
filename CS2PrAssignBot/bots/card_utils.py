@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import Dict, List, Union
 
 from botbuilder.schema import ChannelAccount
@@ -7,8 +6,9 @@ from botbuilder.schema.teams import TeamsChannelAccount
 
 def construct_select_group_card(
     WI: str, 
-    pr_link: str,
+    review_link: str,
     description: str,
+    reviewers: str,
     task_groups: List[str],
     selected: bool,
 ):
@@ -17,19 +17,48 @@ def construct_select_group_card(
         "type": "AdaptiveCard",
         "version": "1.3",
         "body": [
-            _pr_basic_info(WI, pr_link, description),
+            _review_basic_info(WI, review_link, description),
+            _text_block_placeholder(),
+            _text_block_placeholder(),
             _text_block_placeholder(),
         ]
     }
 
     if not selected:
-        select_group_card["body"].append(
-            {
-                "type": "TextBlock",
-                "text": "Select task group for your PR",
-                "weight": "bolder",
-            }
+        select_group_card["body"].extend(
+            [
+                {
+                    "type": "TextBlock",
+                    "text": "Select reviewers",
+                    "weight": "bolder",
+                },
+                {
+                    "type": "Input.Text",
+                    "id": "Reviewers",
+                    "placeholder": "Assign to specified reviewers, separated by comma.",
+                },
+                _text_block_placeholder(),
+                _text_block_placeholder(),
+                _text_block_placeholder(),
+                {
+                    "type": "TextBlock",
+                    "text": "Or, select task group to randomly choose reviewers from",
+                    "weight": "bolder",
+                },
+                {
+                    "type": "Input.Number",
+                    "label": "Number of Reviewers",
+                    "id": "NumberOfReviewers",
+                    "placeholder": "Number of Reviewers",
+                    "min": 1,
+                    "max": 5,
+                    "value": 1,
+                }
+            ]
         )
+
+        _construct_unselect_group_choice_set(select_group_card, task_groups)
+
         select_group_card["actions"] = [
             {
                 "type": "Action.Submit",
@@ -37,30 +66,28 @@ def construct_select_group_card(
                 "data": {
                     "action": "submitpr",
                     "WI": WI,
-                    "PrLink": pr_link,
+                    "ReiviewLink": review_link,
                     "Description": description,
                 }
             }
         ]
-
-        return _construct_unselect_card_choice_set(select_group_card, task_groups)
     else:
-        select_group_card["body"].append(
-            {
-                "type": "TextBlock",
-                "text": "Selected task group for your PR",
-                "weight": "bolder",
-            }
-        )
-        return _construct_selected_card(select_group_card, task_groups)
+        assert (len(reviewers.strip()) > 0 or len(task_groups) > 0 and len(task_groups[0]) > 0), "At least specify one of Reviewers or TaskGroup."
 
-def _construct_unselect_card_choice_set(select_group_card: Dict, task_groups) -> Dict:
+        if len(reviewers) > 0:
+            _construct_selected_reviewers(select_group_card, reviewers)
+        else:
+            _construct_selected_group(select_group_card, task_groups)
+
+    return select_group_card
+
+def _construct_unselect_group_choice_set(select_group_card: Dict, task_groups):
     choices_set = {
         "type": "Input.ChoiceSet",
+        "label": "Task Group",
         "id": "TaskGroup",
         "style": "expanded",
         "isMultiSelect": False,
-        "value": "General",
         "choices": [
             {
                 "title": "General",
@@ -79,9 +106,33 @@ def _construct_unselect_card_choice_set(select_group_card: Dict, task_groups) ->
 
     select_group_card["body"].append(choices_set)
 
-    return select_group_card
+def _construct_selected_reviewers(select_group_card: Dict, reviewers):
+    select_group_card["body"].append(
+        {
+            "type": "TextBlock",
+            "text": "Selected reviewers",
+            "weight": "bolder",
+        }
+    )
 
-def _construct_selected_card(select_group_card: Dict, task_groups) -> Dict:
+    select_group_card["body"].append(
+        {
+            "type": "TextBlock",
+            "text": reviewers,
+            "color": "accent",
+            "weight": "bolder",
+        },
+    )
+
+def _construct_selected_group(select_group_card: Dict, task_groups):
+    select_group_card["body"].append(
+        {
+            "type": "TextBlock",
+            "text": "Selected task group for your review",
+            "weight": "bolder",
+        }
+    )
+
     for task_group in task_groups:
         select_group_card["body"].append(
             {
@@ -91,12 +142,10 @@ def _construct_selected_card(select_group_card: Dict, task_groups) -> Dict:
                 "weight": "bolder",
             },
         )
-    return select_group_card
 
-#TODO: number of reviewers, specific reviewers with hint
-def construct_pr_submit_form(
+def construct_review_submit_form(
     WI: str, 
-    pr_link: str,
+    review_link: str,
     description: str,
     reviewee: Union[ChannelAccount, TeamsChannelAccount],
     reviewers: List[str],
@@ -107,7 +156,7 @@ def construct_pr_submit_form(
         "type": "AdaptiveCard",
         "version": "1.3",
         "body": [
-            _pr_basic_info(WI, pr_link, description),
+            _review_basic_info(WI, review_link, description),
             _text_block_placeholder(),
         ],
         "actions": [
@@ -124,10 +173,7 @@ def construct_pr_submit_form(
     _add_review_info(review_card, reviewee, reviewers, saved_members)
 
     review_card["body"].extend(
-        [
-            _text_block_placeholder(),
-            _text_block_placeholder(),
-        ]
+        [_text_block_placeholder(), _text_block_placeholder()]
     )
 
     return review_card
@@ -251,7 +297,7 @@ def _is_saved_member(member_name: str, saved_members: List[Dict]):
             return True
     return False
 
-def _pr_basic_info(WI: str, link: str, description: str) -> Dict:
+def _review_basic_info(WI: str, link: str, description: str) -> Dict:
     return {
         "type": "Container",
         "items": [
@@ -264,7 +310,7 @@ def _pr_basic_info(WI: str, link: str, description: str) -> Dict:
             {
                 "type": "TextBlock",
                 "size": "medium",
-                "text": "[click to review]({})".format(link)
+                "text": "[review link]({})".format(link)
             },
             {
                 "type": "TextBlock",
@@ -280,3 +326,4 @@ def _text_block_placeholder() -> Dict:
         "type": "TextBlock",
         "text": " ",
     }
+

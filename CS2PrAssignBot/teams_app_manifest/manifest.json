@@ -72,21 +72,21 @@
                 "inputType": "text"
               },
               {
-                "name": "PrLink",
-                "title": "PR Link",
-                "description": "Link of PR Repo",
+                "name": "ReiviewLink",
+                "title": "Link",
+                "description": "Link to review task.",
                 "inputType": "text"
               },
               {
                 "name": "Description",
                 "title": "Description",
-                "description": "Shortly describe changes in this PR",
+                "description": "Shortly describe goal for new implementation, reason for modification or fix for bug.",
                 "inputType": "textarea"
               },
               {
-                "name": "TaskGroup",
-                "title": "Task Group [Optional]",
-                "description": "Task group for this WI, could be decided later",
+                "name": "Reviewers",
+                "title": "Specify Reviewers [Optional]",
+                "description": "Assign to specified reviewers, separated by comma.",
                 "inputType": "text"
               }
             ]
