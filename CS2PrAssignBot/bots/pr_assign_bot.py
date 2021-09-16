@@ -300,7 +300,7 @@ class PrAssignBot(TeamsActivityHandler):
             pass
 
         if not post_from_same_channel:
-            await turn_context.send_activity(MessageFactory.text("*Pr review request has been updated to the channel*"))
+            await turn_context.send_activity(MessageFactory.text("*Review task has been posted to the Teams'channel : )*"))
 
         await self._create_new_thread_in_channel(turn_context, self._team_config["channel_id"], message=submit_review_message)
 
