@@ -46,13 +46,12 @@ class PrAssignBot(TeamsActivityHandler):
         self, turn_context: TurnContext, action: MessagingExtensionAction
     ) -> MessagingExtensionActionResponse:
         if action.command_id == "submitPR":
-            reviewers = action.data.get("Reviewers", "No reviewer specified")
+            reviewers = action.data.get("Reviewers", "")
             assigned = len(reviewers.strip()) > 0
             invalid_reviewers = self._get_invalid_reviewers(reviewers)
 
             if invalid_reviewers:
-                await turn_context.send_activity(MessageFactory.text("Invalid reviewers: {}".format(invalid_reviewers if assigned else "Not Assigned")))
-                await self._send_task_group_card(turn_context)
+                await turn_context.send_activity(MessageFactory.text("*Invalid reviewers: {}*".format(invalid_reviewers if assigned else "Not Assigned")))
 
             if invalid_reviewers or len(reviewers) == 0:
                 await self._select_group_for_review(turn_context, action.data)
@@ -93,9 +92,9 @@ class PrAssignBot(TeamsActivityHandler):
                     task_group = value.get("TaskGroup", "")
 
                     if not assigned and len(task_group) == 0:
-                        await turn_context.send_activity(MessageFactory.text("Please specify Reiviewers Or TaskGroup"))
+                        await turn_context.send_activity(MessageFactory.text("*Please specify Reiviewers Or TaskGroup*"))
                     elif assigned and invalid_reviewers:
-                        error_message = "Invalid reviewers: {}".format(invalid_reviewers)
+                        error_message = "*Invalid reviewers: {}*".format(invalid_reviewers)
                         await turn_context.send_activity(MessageFactory.text(error_message))
                     else:
                         await self._update_select_group_card(turn_context, value)
@@ -245,7 +244,7 @@ class PrAssignBot(TeamsActivityHandler):
             pass
 
         if not post_from_same_channel:
-            await turn_context.send_activity(MessageFactory.text("Pr review request has been updated to the channel"))
+            await turn_context.send_activity(MessageFactory.text("*Pr review request has been updated to the channel*"))
 
         await self._create_new_thread_in_channel(turn_context, self._team_config["channel_id"], message=submit_review_message)
 
