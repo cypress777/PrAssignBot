@@ -234,7 +234,7 @@ class PrAssignBot(TeamsActivityHandler):
                 )
             )
         else:
-            reviewers = self._extract_members(assign_from_group)
+            reviewers = self._extract_members(number_of_reviewers, assign_from_group)
 
         return reviewers
 
