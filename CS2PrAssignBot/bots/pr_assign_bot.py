@@ -172,9 +172,9 @@ class PrAssignBot(TeamsActivityHandler):
     ):
         select_card = CardFactory.adaptive_card(
             bot_utils.construct_select_group_card(
-                data["WI"],
-                data["ReiviewLink"],
-                data["Description"],
+                data.get("WI", ""),
+                data.get("ReviewLink", ""),
+                data.get("Description", ""),
                 data.get("Reviewers", ""),
                 self._team_config["groups"].keys(),
                 selected=False,
@@ -190,9 +190,9 @@ class PrAssignBot(TeamsActivityHandler):
     ):
         selected_card = CardFactory.adaptive_card(
             bot_utils.construct_select_group_card(
-                data["WI"],
-                data["ReiviewLink"],
-                data["Description"],
+                data.get("WI", ""),
+                data.get("ReviewLink", ""),
+                data.get("Description", ""),
                 data.get("Reviewers", ""),
                 [data.get("TaskGroup")] if data.get("TaskGroup") else [],
                 selected=True,
@@ -282,9 +282,9 @@ class PrAssignBot(TeamsActivityHandler):
 
         review_card = CardFactory.adaptive_card(
             bot_utils.construct_review_submit_form(
-                data["WI"],
-                data["ReiviewLink"],
-                data["Description"],
+                data.get("WI", ""),
+                data.get("ReviewLink", ""),
+                data.get("Description", ""),
                 reviewee,
                 reviewers,
                 self._saved_team_members,

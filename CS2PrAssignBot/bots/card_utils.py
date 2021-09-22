@@ -67,7 +67,7 @@ def construct_select_group_card(
                 "data": {
                     "action": "submitpr",
                     "WI": WI,
-                    "ReiviewLink": review_link,
+                    "ReviewLink": review_link,
                     "Description": description,
                 }
             }

@@ -72,7 +72,7 @@
                 "inputType": "text"
               },
               {
-                "name": "ReiviewLink",
+                "name": "ReviewLink",
                 "title": "Link",
                 "description": "Link to review task.",
                 "inputType": "text"
